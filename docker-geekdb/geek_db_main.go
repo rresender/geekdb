@@ -39,17 +39,17 @@ func main() {
 
 	log.Printf("Starting Server...\n")
 
-	debugDataPrinterTicker := time.Tick(5 * time.Second)
-	numberBroadcastTicker := time.Tick(2 * time.Second)
+	broadcast := time.Tick(5 * time.Second)
+	debugData := time.Tick(2 * time.Second)
 
 	for {
 		select {
-		case <-numberBroadcastTicker:
-			members := getOtherMembers(cluster)
+		case <-broadcast:
+			members := getMembers(cluster)
 			ctx, cancel := context.WithTimeout(ctx, time.Second*2)
 			defer cancel()
 			go notifyOthers(ctx, members, entry)
-		case <-debugDataPrinterTicker:
+		case <-debugData:
 			log.Printf("Members: %v\n", cluster.Members())
 			curVal, curGen := entry.getValue()
 			log.Printf("State: Val: %v Gen: %v\n", curVal, curGen)
@@ -123,11 +123,11 @@ func launchHTTP(db *Entry) {
 			}
 			w.WriteHeader(http.StatusOK)
 		})
-		log.Fatal(http.ListenAndServe(":8080", m))
+		log.Fatal(http.ListenAndServe(":7000", m))
 	}()
 }
 
-func getOtherMembers(cluster *serf.Serf) []serf.Member {
+func getMembers(cluster *serf.Serf) []serf.Member {
 	members := cluster.Members()
 	for i := 0; i < len(members); {
 		if members[i].Name == cluster.LocalMember().Name || members[i].Status != serf.StatusAlive {
@@ -174,7 +174,7 @@ func notifyOthers(ctx context.Context, otherMembers []serf.Member, db *Entry) {
 func notifyMember(ctx context.Context, addr string, db *Entry) error {
 	val, gen := db.getValue()
 
-	url := fmt.Sprintf("http://%v:8080/notify/%v/%v?notifier=%v", addr, val, gen, ctx.Value(nameKey))
+	url := fmt.Sprintf("http://%v:7000/notify/%v/%v?notifier=%v", addr, val, gen, ctx.Value(nameKey))
 
 	log.Printf("Url to Notify: %v", url)
 
